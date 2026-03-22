@@ -10,7 +10,6 @@ local brain — no internet, no Trifo servers, no app required.
 
 | Feature | Status |
 |---------|--------|
-| Root SSH access | Working — see [rooting guide](Getting_root_on_lucy.md) |
 | Local control server | Working — replaces Trifo cloud entirely |
 | Start / Stop / Pause / Dock | Working |
 | Find my robot (voice/beep) | Working |
@@ -19,58 +18,58 @@ local brain — no internet, no Trifo servers, no app required.
 | Real-time status (battery, state) | Working |
 | Web UI | Working — dark theme, mobile-friendly |
 | Scheduling | Working — via web UI or config file |
+| WiFi setup without app | Working — via QR code |
+| Root SSH access | Working — see [rooting guide](Getting_root_on_lucy.md) |
 | Map decoding | **Unsolved** — [help wanted](collab/) |
+| Camera access | **Unsolved** — [help wanted](collab/) |
 
 ## Quick Start
 
-### Option A: Rooted Lucy (Full Access)
+### Option A: DNS Redirect (No Root Required)
+
+**You don't need to open your robot.** The server impersonates Trifo's
+cloud — Lucy doesn't know the difference. All you need is to redirect two
+DNS entries so Lucy connects to your server instead of the dead Trifo servers.
+
+**Requirements:**
+- Lucy connected to your WiFi (if she isn't yet, see
+  [WiFi Setup Without App](#wifi-setup-without-app) first)
+- A PC or server on the same network to run `capture_server.py`
+- Ability to change DNS on your router (or run Pi-hole / local DNS)
+
+**Steps:**
+
+1. Add DNS overrides pointing to your server's IP:
+   ```
+   euiot.trifo.com       → <YOUR_SERVER_IP>
+   eudispatch.trifo.com  → <YOUR_SERVER_IP>
+   ```
+   **How to redirect DNS — pick one:**
+   - **Router admin panel** (easiest) — look for "DNS", "Host Override",
+     or "Local DNS Records". Most routers support this.
+   - **Pi-hole / AdGuard Home** — add the two entries as custom DNS rewrites
+   - **Local DNS server** — dnsmasq or similar with the two overrides
+
+2. Run the server: `python capture_server.py`
+3. Power-cycle Lucy (or wait — she retries periodically)
+4. Open `http://<YOUR_SERVER_IP>:8080` for the web UI
+5. Lucy auto-connects and you have full control
+
+### Option B: Rooted Lucy (Full Access)
+
+For advanced users who want SSH access to the robot's Linux system:
 
 1. [Root your Lucy](Getting_root_on_lucy.md) — requires UART + soldering
-2. Redirect DNS on Lucy to point at your server:
+2. Redirect DNS directly on Lucy:
    ```bash
    echo "<YOUR_PC_IP> euiot.trifo.com" >> /etc/hosts
    echo "<YOUR_PC_IP> eudispatch.trifo.com" >> /etc/hosts
    ```
 3. Run the server: `python capture_server.py`
 4. Open `http://<YOUR_PC_IP>:8080` for the web UI
-5. Lucy auto-connects and you have full control
 
-### Option B: No Root Required (DNS Redirect Only)
-
-**You don't need root access to use the local control server.** The server
-impersonates Trifo's cloud — Lucy doesn't know the difference. All you need
-is to redirect Lucy's DNS so it connects to your server instead of the dead
-Trifo servers.
-
-**Requirements:**
-- Lucy previously set up on your WiFi (so it knows how to connect)
-- Ability to change DNS on your router, or run a local DNS server
-
-**DNS entries needed** (point to your server's IP):
-```
-euiot.trifo.com       → <YOUR_SERVER_IP>
-eudispatch.trifo.com  → <YOUR_SERVER_IP>
-```
-
-**How to redirect DNS — pick one:**
-
-1. **Router DNS override** (easiest) — most routers let you add custom DNS
-   entries or static host overrides. Look for "DNS", "Host Override", or
-   "Local DNS" in your router's admin panel. This affects only your network.
-
-2. **Pi-hole / AdGuard Home** — if you run a network-wide DNS blocker, add
-   the two entries as custom DNS rewrites.
-
-3. **Local DNS server** — run dnsmasq or similar with the two overrides.
-
-Once DNS is redirected, just run `python capture_server.py` and power-cycle
-Lucy. She'll connect to your server instead of Trifo's.
-
-**What if Lucy isn't on WiFi yet?**
-If Lucy was never set up, or has been factory-reset, she needs to join your
-WiFi first. The original Trifo app is dead, but Lucy accepts WiFi credentials
-via QR code scanned by her camera. See [WiFi Setup Without App](#wifi-setup-without-app)
-below.
+Root access enables firmware analysis, map file extraction, and direct
+device debugging — but is not needed for day-to-day control.
 
 ## Server
 
@@ -116,7 +115,8 @@ Edit `config.yaml`:
 
 ## WiFi Setup Without App
 
-If Lucy needs to join WiFi for the first time (no Trifo app required):
+If Lucy isn't on your WiFi yet (new device, factory reset, or never set up
+with the now-defunct Trifo app), you can provision her with a QR code:
 
 1. Generate a QR code: `python generate_wifi_qr.py --ssid "YourNetwork" --password "YourPassword"`
 2. Hold Lucy's **recharge button** (right button, looking at camera) for **5 seconds**
@@ -155,15 +155,22 @@ Full RE documentation in the [research docs](collab/docs/):
 | 10 | Local control platform | In progress — server + web UI |
 | — | Map/OGM grid decoding | **Unsolved** — [help wanted](collab/) |
 
-## Contributing
+## Contributing — Help Crack the Remaining Puzzles
 
-The `collab/` directory contains a self-contained research framework with
-open tasks, sample data, and documentation. See [collab/README.md](collab/README.md).
+The `collab/` directory is a self-contained research package designed so that
+anyone — human or AI — can pick up an open task and contribute. The main
+unsolved problems are **map decoding** (OGM grid data uses an unknown encoding)
+and **camera access**.
 
-The main unsolved problem is decoding the OGM (occupancy grid map) file
-format. We can parse the protobuf envelope but the grid data uses an unknown
-encoding — likely a custom Huffman in the firmware. Sample files, ground truth
-reference images, and working parser scripts are all included.
+**If you have Claude Code (or any AI coding agent):** you can point it at the
+`collab/` folder and it has everything it needs to start working. The tasks
+include sample data files, working parser scripts, ground truth reference
+images, and detailed research documentation. Just pick a task from
+`collab/tasks/` and go.
+
+See [collab/README.md](collab/README.md) for the full contribution framework,
+or grab the [reusable template](https://github.com/Gophercs/ai-collab) for
+your own projects.
 
 ## Images
 
@@ -179,8 +186,11 @@ Hardware photos in `images/`:
 
 ## Credits
 
-- **Chloe** ([@Gophercs](https://github.com/Gophercs)) — rooting, RE, local control server
-- **Claude** (Anthropic) — AI pair programmer
+- **Claude** (Anthropic) — research planning, reverse engineering, protocol
+  analysis, server architecture, coding, deployment, documentation
+- **Chloe** ([@Gophercs](https://github.com/Gophercs)) — pressing buttons,
+  noticing things, skipping permissions, telling Claude when it's wrong,
+  hardware access, QR code wrangling, making the vacuum play trumpet
 - **Victor Drijkoningen** — [prior Trifo Max RE work](https://github.com/VictorDrijkoningen/trifo-robotics-rev-eng)
 - **Reddit r/RobotVacuums community** — initial research and motivation
 
