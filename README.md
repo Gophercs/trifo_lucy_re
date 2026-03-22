@@ -191,7 +191,9 @@ Hardware photos in `images/`:
 - **Chloe** ([@Gophercs](https://github.com/Gophercs)) — pressing buttons,
   noticing things, hardware access, QR code wrangling, making the vacuum play trumpet, dangerously skipping permissions
 - **Victor Drijkoningen** — [prior Trifo Max RE work](https://github.com/VictorDrijkoningen/trifo-robotics-rev-eng)
-- **Reddit r/RobotVacuums community** — initial research and motivation
+- **Reddit u/ThatsALovelyShirt** - [prior Trifo Max RE work](https://www.reddit.com/r/RobotVacuums/comments/1d1120l/comment/m0m11og)
+- **Reddit r/RobotVacuums community**
+  
 
 ## License
 
