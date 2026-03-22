@@ -116,14 +116,16 @@ Edit `config.yaml`:
 
 ## WiFi Setup Without App
 
-If Lucy needs to join WiFi for the first time (no app required):
+If Lucy needs to join WiFi for the first time (no Trifo app required):
 
-Lucy scans QR codes with her front camera during provisioning mode. The QR
-code contains WiFi credentials in a specific format. Hold the QR code in front
-of Lucy's camera while she's in pairing mode (hold the home button for 5+
-seconds until she announces she's ready to pair).
+1. Generate a QR code: `python generate_wifi_qr.py --ssid "YourNetwork" --password "YourPassword"`
+2. Hold Lucy's **recharge button** (right button, looking at camera) for **5 seconds**
+3. Wait for "entering network configuration" announcement
+4. Display QR on your phone at max brightness, start ~1m from camera, slowly approach
+5. Lucy announces success and connects to WiFi
 
-*TODO: document the exact QR code format and provisioning flow.*
+See [wifi_provisioning.md](wifi_provisioning.md) for full details, QR format
+documentation, and tips for getting the camera to read the code.
 
 ## Hardware
 
