@@ -189,8 +189,7 @@ Hardware photos in `images/`:
 - **Claude** (Anthropic) — research planning, reverse engineering, protocol
   analysis, server architecture, coding, deployment, documentation
 - **Chloe** ([@Gophercs](https://github.com/Gophercs)) — pressing buttons,
-  noticing things, skipping permissions, telling Claude when it's wrong,
-  hardware access, QR code wrangling, making the vacuum play trumpet
+  noticing things, hardware access, QR code wrangling, making the vacuum play trumpet, dangerously skipping permissions
 - **Victor Drijkoningen** — [prior Trifo Max RE work](https://github.com/VictorDrijkoningen/trifo-robotics-rev-eng)
 - **Reddit r/RobotVacuums community** — initial research and motivation
 
