@@ -1,11 +1,11 @@
 ---
 id: TASK-001
 title: Decode OGM grid data encoding
-status: open
+status: in_progress
 priority: high
 depends_on: []
 estimated_effort: large
-skills: [reverse-engineering, binary-analysis, compression, protobuf]
+skills: [reverse-engineering, binary-analysis, aarch64, compression]
 ---
 
 # Decode OGM Grid Data Encoding
@@ -16,69 +16,85 @@ Trifo Lucy robot vacuum stores occupancy grid maps as `.ogm` files. These use
 a non-standard protobuf format with several firmware bugs (7-byte cell_size
 encoding, lying length varints). The protobuf envelope is fully parsed — we can
 extract all metadata fields including grid dimensions, resolution, origin, and
-a raw grid data blob (protobuf field 8).
+a raw grid data blob (protobuf field 6).
 
 **The grid data blob encoding is unknown.** It's NOT standard compression
 (not zlib, gzip, lz4, zstd, brotli, snappy, bz2, lzma, deflate, lzo).
-It's NOT raw pixel data. It's likely a custom Huffman variant compiled into
-the `navigation_node` binary on the robot.
+It's NOT raw pixel data. It's a custom encoding in the firmware.
 
-Read `docs/ogm_format_research.md` FIRST — it contains everything known, including
-hex dumps, firmware analysis, and a full list of what's been tried and ruled out.
+Read `docs/ogm_format_research.md` FIRST — it contains everything known.
+
+## What's Been Ruled Out
+
+See `submissions/TASK-001_daneel_01/SUBMISSION.md` for detailed analysis:
+
+- **All standard compression formats** — none match
+- **Nested protobuf** — dominant bytes (0x00, 0x08, 0x04, 0x0d, 0x22) are
+  coincidental, not wire format tags
+- **APK decode path** — the APK never sees encoded grid data. The robot
+  decodes OGM to raw cells then sends to cloud. **TASK-003 is eliminated.**
+- **`trifo::Huffman` class in libtrifo_core_cloud.so** — disassembled in full
+  (see `docs/firmware/huffman_disasm_analysis.md`). Uses a TEXT header format.
+  OGM grid data starts with binary `80 01 00`, not text. **Not the OGM encoder.**
+
+## What's Known About the Encoding
+
+From statistical analysis (daneel_01 submission):
+
+- **`0d 04 08 00` marker** — appears 8,496 times at ~10.9 byte intervals.
+  Delimits tiles of ~23 cells on average. 25% of total data.
+- **`0f 02 00` marker** — appears 456 times (close to row count 472). Likely
+  row delimiter.
+- **0xFF runs** — long runs encode unexplored regions
+- **5.19 bits/cell** compression ratio — consistent with variable-length coding
+- **Only `small_map.ogm` and `latest_map.ogm` have real data** — other samples
+  are empty maps (13-byte grid blobs)
 
 ## Objective
 
-Produce a decoder (any language) that takes the field 8 grid data blob and
+Produce a decoder (any language) that takes the field 6 grid data blob and
 outputs a 2D occupancy grid matching the dimensions in the protobuf metadata.
 "Done" means: decoded grid visually resembles a room/floor plan when rendered.
 
 ## Inputs
 
-- `docs/ogm_format_research.md` — the complete research document (start here)
+- `docs/ogm_format_research.md` — complete research document (start here)
+- `docs/firmware/` — firmware binaries and analysis:
+  - `libtrifo_core_cloud.so` (2.1 MB) — cloud SDK library (aarch64 ELF)
+  - `cloud_node` (127 KB) — cloud service binary (thin wrapper, links libs)
+  - `slam_node` (79 KB) — SLAM binary (thin wrapper)
+  - `huffman_disasm_analysis.md` — full annotated disassembly of the Huffman
+    class (821 lines). **Read this to avoid repeating work.**
 - `docs/samples/` — sample data and tools:
-  - `small_map.ogm` (133 KB) — smaller OGM file
-  - `newest_map.ogm` (128 KB) — recent OGM file
-  - `synced_map.ogm` (128 KB) — OGM with matching SHM ground truth (request bins from maintainer)
-  - `shm_reference.png` — visual render of the SHM grid (this is what decoded OGM should look like)
-  - `parse_ogm_proto.py` — working protobuf parser (extracts all fields including grid blob)
-  - `decode_ogm.py` — decode attempt script (shows field extraction)
-  - `compare_ogm_shm.py` — comparison tool for OGM vs SHM data
-- Firmware binary: `navigation_node` (aarch64 ELF) contains the decoder — not
-  included due to size, request from maintainer if needed
+  - `small_map.ogm` (133 KB) — primary test file (472x417 grid, real data)
+  - `latest_map.ogm` (171 KB) — second test file (429x491 grid, real data)
+  - `shm_reference.png` — visual render of decoded grid (ground truth)
+  - `parse_ogm_proto.py` — working protobuf parser
+  - `decode_ogm.py` — decode attempt script
+  - `compare_ogm_shm.py` — OGM vs SHM comparison tool
+- SHM ground truth dumps available on request (too large for git, ~120MB)
 
-## Approaches to Try
+## Current Best Approach
 
-In rough priority order (see research doc section 13 for full rationale):
+**Disassemble `cloud_node` and/or `slam_node`** to find the actual grid
+encoding function. These are small binaries (~80-130KB) that link against
+`libtrifo_core_cloud.so` and other libraries. The encoding happens somewhere
+in the chain: SHM read > convert_to_ogm_format (0xFF>0x7F) > [ENCODE] >
+protobuf serialize > SaveOGM.
 
-1. **Firmware disassembly** — find the Huffman/decode routine in `navigation_node`.
-   Look for the SHM write path (`shm_open` / `mmap`) and trace backwards to find
-   what transforms field 8 data into the grid buffer. Needs aarch64 disassembly
-   (Ghidra/IDA).
+Key things to look for:
+- Functions that reference the `0d040800` marker constant
+- The code path from shm_open/mmap to protobuf field 6 assignment
+- Any encode/compress function that ISN'T the trifo::Huffman class
+- The convert_to_ogm_format function and what it calls next
 
-2. **Runtime capture** — if you have robot access, dump the SHM segment while
-   an OGM file is being loaded. Compare raw grid (SHM) with encoded grid (field 8)
-   to identify the encoding.
-
-3. **Statistical / entropy analysis** — the research doc has some initial byte
-   frequency analysis. A custom Huffman would have a code table embedded either in
-   the data or in the binary. Look for it.
-
-4. **APK analysis** — the Trifo Home Android app (`com.trifo.home`) has map
-   rendering code. The APK is decompiled. The LZ4+Base64 transport layer is
-   understood, but the grid data decoder in the app hasn't been fully traced yet.
+Tools: Ghidra, IDA, or capstone (Python) for aarch64 disassembly.
 
 ## Constraints
 
 - Do NOT attempt to connect to or modify the robot — this is analysis only
 - Do NOT include any credentials or keys in submissions
-- If you need sample data beyond what's in the research doc, describe what you
-  need and the maintainer will extract it
 
-## Hints
+## Prior Submissions
 
-- The grid data likely has a small header (code table?) followed by bitstream
-- Values should map to 0-255 occupancy (0=free, 255=occupied, 128=unknown — or similar)
-- Grid dimensions from protobuf metadata: typically 2001x2001 or 1001x1001
-- The `cell_size` field has a firmware bug — see research doc section 6
-- Look at byte offset patterns in field 8 data — if Huffman, there may be
-  a recognizable code table structure in the first N bytes
+- `TASK-001_daneel_01/` — statistical analysis + APK decompilation (merged)

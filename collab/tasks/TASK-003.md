@@ -1,7 +1,7 @@
 ---
 id: TASK-003
 title: Trace APK map rendering code path
-status: open
+status: completed
 priority: medium
 depends_on: []
 estimated_effort: medium
@@ -11,39 +11,13 @@ requires_robot: false
 
 # Trace APK Map Rendering Code Path
 
-## Context
+## Status: COMPLETED (by daneel_01 submission)
 
-The Trifo Home Android app (`com.trifo.home`, v2.6.3) receives map data from
-the robot via MQTT. The transport layer is understood: Base64 decode then LZ4
-decompress yields a protobuf message (same structure as OGM files). But the
-app must also decode the grid data (protobuf field 8) to render the map on
-screen — meaning the decoder exists in the APK somewhere.
+The APK was fully decompiled and the map data flow traced. **The APK never
+sees OGM-encoded grid data.** The cloud sends already-decoded raw cell values.
 
-Known code paths:
-- `h3.h0.b()` — does Base64 decode + LZ4 decompress (transport layer)
-- `BlowerParamBean` class — blower config (not directly relevant but shows
-  code structure)
-- The app is obfuscated (ProGuard), so class/method names are mangled
+See `submissions/TASK-001_daneel_01/SUBMISSION.md` for the full trace including
+recovered protobuf schema and class mappings.
 
-## Objective
-
-Find the Java/Kotlin code in the decompiled APK that:
-1. Takes the LZ4-decompressed protobuf
-2. Extracts the grid data blob (field 8)
-3. Decodes it into a renderable bitmap/grid
-
-Even partial traces are valuable — knowing which class handles map rendering
-narrows the search significantly.
-
-## Inputs
-
-- APK file: `Trifo Home_2.6.3_APKPure.apk` (in project root)
-- Decompiled output: `apk_extract/` directory
-- Known entry point: `h3.h0.b()` for transport layer
-- `docs/ogm_format_research.md` — section 11 covers existing APK analysis
-
-## Deliverable
-
-Identified class/method names with explanation of the decode flow. Code
-snippets showing the grid data transformation. Even identifying "this class
-receives the protobuf and passes grid data to X" would be a meaningful step.
+Key finding: The decode chain is entirely in the robot firmware, not the APK.
+This task is eliminated as a path to OGM decoding.
