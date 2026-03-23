@@ -1,0 +1,54 @@
+# Lucy Local Control Server Configuration
+# =========================================
+#
+# Most values are auto-learned from Lucy's handshake and saved to state.yaml.
+# You only need to set server.ip (or leave as "auto" to auto-detect).
+
+server:
+  # IP address of this machine on the LAN. Lucy's DNS must resolve to this.
+  # Set to "auto" to auto-detect from the default network interface.
+  ip: "auto"
+
+  # Ports (these match Trifo's protocol and generally shouldn't change)
+  dispatch_port: 7990       # QLCloud dispatch (TLS)
+  mqtt_port: 17766          # QLCloud MQTT broker (TLS)
+  https_port: 443           # HTTPS (voice packages, etc.)
+  control_port: 9999        # Local control socket (send_command.py / lucy_control.py)
+  api_port: 8080            # REST API + Web UI
+
+  # TLS certificate paths (relative to this config file's directory)
+  cert_file: "mqtt_cert.pem"
+  key_file: "mqtt_key.pem"
+
+# QLCloud protocol constants (don't change unless you know what you're doing)
+qlcloud:
+  seed: 0x7ecf              # Rolling XOR seed for dispatch protocol
+  magic_eu: 0xf1eb          # EU region dispatch magic
+  magic_us: 0xf1ec          # US region dispatch magic
+
+# Device credentials by region
+# These are Trifo product keys — same for all Lucy robots in a region.
+regions:
+  eu:
+    product_id: 1009506721
+    product_key: "376c3878d6666a48c628226b6453d923"
+  us:
+    product_id: null         # TODO: discover from US-region Lucy
+    product_key: "a734264a61794bfc346463762762f429"
+
+# Scheduling — automatic cleaning runs
+# Each entry needs a time (24h format) and a command.
+# Optional: days (mon,tue,wed,thu,fri,sat,sun) — defaults to every day.
+schedule:
+  # Example: clean at 9am on weekdays, dock at 10:30 as safety net
+  # - time: "09:00"
+  #   command: start
+  #   days: [mon, tue, wed, thu, fri]
+  # - time: "10:30"
+  #   command: dock
+  #   days: [mon, tue, wed, thu, fri]
+
+# Logging
+logging:
+  file: "capture_log.txt"    # Log file (relative to config directory)
+  verbose: true              # Log all MQTT traffic details

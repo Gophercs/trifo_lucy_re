@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lucy Control</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #1a1a2e; color: #eee; min-height: 100vh; }
+.header { background: #16213e; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #0f3460; }
+.header h1 { font-size: 20px; font-weight: 600; }
+.status-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-right: 8px; }
+.status-dot.connected { background: #4ecca3; }
+.status-dot.disconnected { background: #e23e57; }
+.container { max-width: 600px; margin: 0 auto; padding: 24px; }
+.card { background: #16213e; border-radius: 12px; padding: 20px; margin-bottom: 16px; border: 1px solid #0f3460; }
+.card h2 { font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: #4ecca3; margin-bottom: 12px; }
+.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.stat { text-align: center; }
+.stat-value { font-size: 28px; font-weight: 700; }
+.stat-label { font-size: 12px; color: #888; margin-top: 2px; }
+.stat-value.cleaning { color: #4ecca3; }
+.stat-value.paused { color: #f39c12; }
+.stat-value.docked { color: #3498db; }
+.stat-value.charging { color: #3498db; }
+.stat-value.returning { color: #f39c12; }
+.stat-value.error { color: #e23e57; }
+.buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.btn { padding: 16px; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+.btn:active { transform: scale(0.95); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-start { background: #4ecca3; color: #1a1a2e; }
+.btn-pause { background: #f39c12; color: #1a1a2e; }
+.btn-dock { background: #3498db; color: #fff; }
+.btn-locate { background: #9b59b6; color: #fff; }
+.btn-mute { background: #6c5ce7; color: #fff; }
+.btn-sm { padding: 8px 12px; font-size: 13px; border-radius: 6px; }
+.btn:hover:not(:disabled) { filter: brightness(1.1); }
+.slider-row { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.slider-row label { width: 70px; font-size: 14px; color: #888; }
+.slider-row input[type=range] { flex: 1; accent-color: #4ecca3; }
+.slider-row .slider-val { width: 40px; text-align: right; font-weight: 600; }
+.log { margin-top: 8px; font-size: 12px; color: #666; min-height: 20px; }
+.log.ok { color: #4ecca3; }
+.log.err { color: #e23e57; }
+/* Schedule */
+.sched-entry { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid #0f3460; font-size: 14px; }
+.sched-entry:last-of-type { border-bottom: none; }
+.sched-time { font-weight: 700; color: #4ecca3; min-width: 50px; }
+.sched-cmd { color: #eee; flex: 1; }
+.sched-days { color: #888; font-size: 12px; }
+.sched-del { background: none; border: none; color: #e23e57; cursor: pointer; font-size: 18px; padding: 2px 6px; }
+.sched-del:hover { color: #ff6b6b; }
+.sched-add { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.sched-add input, .sched-add select { background: #1a1a2e; border: 1px solid #0f3460; color: #eee; padding: 8px; border-radius: 6px; font-size: 13px; }
+.sched-add input[type=time] { width: 100px; }
+.sched-add select { flex: 1; min-width: 100px; }
+.sched-status { font-size: 12px; color: #888; margin-top: 8px; }
+.sched-status span { color: #4ecca3; }
+.day-picker { display: flex; gap: 4px; margin-top: 8px; }
+.day-btn { padding: 4px 8px; border: 1px solid #0f3460; border-radius: 4px; background: transparent; color: #888; font-size: 11px; cursor: pointer; }
+.day-btn.active { border-color: #4ecca3; color: #4ecca3; background: rgba(78,204,163,0.1); }
+/* Collapsible */
+.collapse-toggle { background: none; border: none; color: #4ecca3; cursor: pointer; font-size: 13px; padding: 4px 0; display: flex; align-items: center; gap: 6px; }
+.collapse-toggle:hover { color: #6fe8c0; }
+.collapse-toggle .arrow { transition: transform 0.2s; display: inline-block; }
+.collapse-toggle .arrow.open { transform: rotate(90deg); }
+.collapse-body { display: none; margin-top: 8px; }
+.collapse-body.open { display: block; }
+.cmd-ref { font-size: 12px; color: #aaa; }
+.cmd-ref table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+.cmd-ref td { padding: 4px 8px; border-bottom: 1px solid #0f3460; vertical-align: top; }
+.cmd-ref td:first-child { color: #4ecca3; font-family: monospace; white-space: nowrap; }
+.cmd-ref .cat { color: #f39c12; font-weight: 600; padding-top: 10px; font-size: 13px; }
+.power-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-top: 8px; }
+.btn-power { background: #0f3460; color: #eee; padding: 10px 4px; font-size: 13px; font-weight: 600; border: 1px solid #1a3a6e; }
+.btn-power:hover:not(:disabled) { background: #1a4a7e; }
+.btn-power.active { background: #4ecca3; color: #1a1a2e; border-color: #4ecca3; }
+.btn-fanfare { background: #9b59b6; color: #fff; padding: 10px 4px; font-size: 16px; border: 1px solid #8e44ad; }
+.btn-fanfare:hover { background: #a66bc8; }
+.btn-fanfare.playing { animation: fanfare-pulse 0.3s ease infinite alternate; }
+@keyframes fanfare-pulse { from { background: #9b59b6; } to { background: #e74c3c; } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Lucy Control</h1>
+  <div id="conn-status">
+    <span class="status-dot disconnected" id="conn-dot"></span>
+    <span id="conn-text">Connecting...</span>
+  </div>
+</div>
+
+<div class="container">
+  <div class="card">
+    <h2>Status</h2>
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-value" id="robot-status">--</div>
+        <div class="stat-label">Status</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="robot-battery">--</div>
+        <div class="stat-label">Battery</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="robot-position">--</div>
+        <div class="stat-label">Position</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="robot-blower">--</div>
+        <div class="stat-label">Power %</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Controls</h2>
+    <div class="buttons">
+      <button class="btn btn-start" onclick="sendCmd('start')">Start</button>
+      <button class="btn btn-pause" onclick="sendCmd('pause')">Pause</button>
+      <button class="btn btn-dock" onclick="sendCmd('dock')">Dock</button>
+      <button class="btn btn-locate" onclick="sendCmd('locate')">Find</button>
+    </div>
+    <div class="log" id="cmd-log"></div>
+  </div>
+
+  <div class="card">
+    <h2>Settings</h2>
+    <div class="slider-row">
+      <label>Volume</label>
+      <input type="range" id="volume-slider" min="0" max="100" value="50"
+             oninput="document.getElementById('volume-val').textContent=this.value"
+             onchange="sendCmd('setVolume', this.value)">
+      <span class="slider-val" id="volume-val">50</span>
+    </div>
+    <div style="margin-top: 12px;">
+      <label style="font-size:14px;color:#888;">Power</label>
+      <div class="power-grid" id="power-buttons">
+        <button class="btn btn-power" onclick="setPower(0)">0%</button>
+        <button class="btn btn-power" onclick="setPower(10)">10</button>
+        <button class="btn btn-power" onclick="setPower(20)">20</button>
+        <button class="btn btn-power" onclick="setPower(30)">30</button>
+        <button class="btn btn-power" onclick="setPower(40)">40</button>
+        <button class="btn btn-power" onclick="setPower(50)">50</button>
+        <button class="btn btn-power" onclick="setPower(60)">60</button>
+        <button class="btn btn-power" onclick="setPower(70)">70</button>
+        <button class="btn btn-power" onclick="setPower(80)">80</button>
+        <button class="btn btn-power" onclick="setPower(90)">90</button>
+        <button class="btn btn-power" onclick="setPower(100)">100</button>
+        <button class="btn btn-fanfare" onclick="playFanfare()" title="Puppy Power!">&#127930;</button>
+      </div>
+    </div>
+    <div style="margin-top: 12px;">
+      <button class="btn btn-mute" style="width: 100%; padding: 12px;" onclick="sendCmd('mute')">Mute / Unmute</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Custom Command</h2>
+    <div style="display:flex;gap:8px;">
+      <input type="text" id="custom-cmd" placeholder="e.g. blowerMode:75 or GET_WORK_STATUS"
+             style="flex:1;background:#1a1a2e;border:1px solid #0f3460;color:#eee;padding:10px;border-radius:6px;font-size:14px;"
+             onkeydown="if(event.key==='Enter')sendCustom()">
+      <button class="btn btn-sm" style="background:#4ecca3;color:#1a1a2e;padding:10px 16px;" onclick="sendCustom()">Send</button>
+    </div>
+    <div class="log" id="custom-log"></div>
+
+    <button class="collapse-toggle" onclick="toggleRef(this)">
+      <span class="arrow">&#9654;</span> Command Reference
+    </button>
+    <div class="collapse-body cmd-ref">
+      <div class="cat">Actions (lowercase, confirmed working)</div>
+      <table>
+        <tr><td>start</td><td>Start cleaning</td></tr>
+        <tr><td>stop</td><td>Pause / stop in place</td></tr>
+        <tr><td>dock</td><td>Return to charging dock</td></tr>
+        <tr><td>locate</td><td>Find me (voice/beep)</td></tr>
+        <tr><td>mute</td><td>Toggle mute</td></tr>
+      </table>
+      <div class="cat">Parameterized (command:value)</div>
+      <table>
+        <tr><td>blowerMode:N</td><td>Suction power (0-100, percentage)</td></tr>
+        <tr><td>setVolume:N</td><td>Speaker volume (0-100)</td></tr>
+        <tr><td>volumeRelative:N</td><td>Volume delta (+10 or -10)</td></tr>
+      </table>
+      <div class="cat">Status queries (UPPERCASE)</div>
+      <table>
+        <tr><td>GET_WORK_STATUS</td><td>Full robot status</td></tr>
+        <tr><td>BATTERY</td><td>Battery level</td></tr>
+        <tr><td>CLEAN_STATE</td><td>Cleaning state</td></tr>
+        <tr><td>GET_SYSTEM_CONFIG</td><td>System configuration</td></tr>
+        <tr><td>GET_LUCY_POSE</td><td>Robot position</td></tr>
+        <tr><td>GET_MAP</td><td>Map data</td></tr>
+      </table>
+      <div class="cat">Manual control (UPPERCASE, untested)</div>
+      <table>
+        <tr><td>MANBLOWER_LOW</td><td>Blower preset: low</td></tr>
+        <tr><td>MANBLOWER_MIDDLE</td><td>Blower preset: medium</td></tr>
+        <tr><td>MANBLOWER_HIGHT</td><td>Blower preset: high (yes, typo)</td></tr>
+        <tr><td>MANBLOWER_CLOSE</td><td>Blower off</td></tr>
+        <tr><td>MANCTRL_S</td><td>Manual control start?</td></tr>
+        <tr><td>MANCTRL_E</td><td>Manual control end?</td></tr>
+        <tr><td>MANCTRL_K</td><td>Manual control stop?</td></tr>
+      </table>
+      <div class="cat">Other (UPPERCASE, untested)</div>
+      <table>
+        <tr><td>GET_MOPPING_MODE</td><td>Mopping mode status</td></tr>
+        <tr><td>GET_MONITOR_STATE</td><td>Camera monitor state</td></tr>
+        <tr><td>GET_DONOT_DISTURB_MODE</td><td>DND mode</td></tr>
+        <tr><td>LOG_CLEAN</td><td>Clean history log</td></tr>
+        <tr><td>LOG_MAP</td><td>Map history log</td></tr>
+        <tr><td>RESTART_CLEAN</td><td>Restart cleaning run</td></tr>
+        <tr><td>SET_WALL_FOLLOW_ENABLE</td><td>Toggle wall follow</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Schedule</h2>
+    <div id="sched-entries"></div>
+    <div class="sched-add">
+      <input type="time" id="sched-time" value="09:00">
+      <select id="sched-cmd">
+        <option value="start">Start clean</option>
+        <option value="dock">Dock</option>
+        <option value="pause">Pause</option>
+      </select>
+      <button class="btn btn-sm" style="background:#4ecca3;color:#1a1a2e;" onclick="addSchedule()">Add</button>
+    </div>
+    <div class="day-picker" id="day-picker">
+      <button class="day-btn active" data-day="mon">Mon</button>
+      <button class="day-btn active" data-day="tue">Tue</button>
+      <button class="day-btn active" data-day="wed">Wed</button>
+      <button class="day-btn active" data-day="thu">Thu</button>
+      <button class="day-btn active" data-day="fri">Fri</button>
+      <button class="day-btn" data-day="sat">Sat</button>
+      <button class="day-btn" data-day="sun">Sun</button>
+    </div>
+    <div style="margin-top: 12px; display: flex; gap: 8px; align-items: center;">
+      <button class="btn btn-sm" id="sched-toggle" style="background:#0f3460;color:#eee;flex:1;" onclick="toggleSchedule()">Enable / Disable</button>
+      <span id="sched-enabled" style="font-size:12px;color:#888;"></span>
+    </div>
+    <div class="sched-status" id="sched-status"></div>
+  </div>
+</div>
+
+<script>
+const API = window.location.origin;
+let connected = false;
+let scheduleEntries = [];
+
+// Day picker toggle
+document.querySelectorAll('.day-btn').forEach(btn => {
+  btn.addEventListener('click', () => btn.classList.toggle('active'));
+});
+
+// Collapsible sections
+function toggleRef(el) {
+  const arrow = el.querySelector('.arrow');
+  const body = el.nextElementSibling;
+  arrow.classList.toggle('open');
+  body.classList.toggle('open');
+}
+
+function updateUI(data) {
+  const statusEl = document.getElementById('robot-status');
+  const statusName = data.status_name || 'unknown';
+  statusEl.textContent = statusName;
+  statusEl.className = 'stat-value ' + statusName;
+
+  const battery = data.battery || '--';
+  document.getElementById('robot-battery').textContent = battery !== '--' ? battery + '%' : '--';
+  document.getElementById('robot-position').textContent = data.position || '--';
+
+  // Robot reports blower as a preset ID (21-24), not our blowerMode percentage.
+  // Don't use it for power display — we track what we sent instead.
+
+  if (data.volume) {
+    const slider = document.getElementById('volume-slider');
+    if (document.activeElement !== slider) {
+      slider.value = data.volume;
+      document.getElementById('volume-val').textContent = data.volume;
+    }
+  }
+
+  const isConnected = data.connected;
+  const dot = document.getElementById('conn-dot');
+  const text = document.getElementById('conn-text');
+  dot.className = 'status-dot ' + (isConnected ? 'connected' : 'disconnected');
+  text.textContent = isConnected ? 'Connected' : 'Disconnected';
+  connected = isConnected;
+
+  if (data.schedule) {
+    updateScheduleUI(data.schedule);
+  }
+}
+
+function updateScheduleUI(s) {
+  if (s.entries) {
+    scheduleEntries = s.entries;
+    const container = document.getElementById('sched-entries');
+    if (s.entries.length === 0) {
+      container.innerHTML = '<div style="color:#666;font-size:13px;padding:8px 0;">No scheduled runs. Add one below.</div>';
+    } else {
+      container.innerHTML = s.entries.map((e, i) => {
+        const days = e.days ? e.days.join(', ') : 'every day';
+        const cmd = e.value ? e.command + ':' + e.value : e.command;
+        return `<div class="sched-entry">
+          <span class="sched-time">${e.time}</span>
+          <span class="sched-cmd">${cmd}</span>
+          <span class="sched-days">${days}</span>
+          <button class="sched-del" onclick="removeSchedule(${i})" title="Remove">&times;</button>
+        </div>`;
+      }).join('');
+    }
+  }
+
+  let status = '';
+  if (s.next_run && s.next_command) {
+    const next = new Date(s.next_run);
+    status += `Next: <span>${s.next_command}</span> at <span>${next.toLocaleString()}</span>`;
+  }
+  if (s.last_run && s.last_command) {
+    const last = new Date(s.last_run);
+    status += (status ? '<br>' : '') + `Last: <span>${s.last_command}</span> at <span>${last.toLocaleString()}</span>`;
+  }
+  document.getElementById('sched-status').innerHTML = status;
+
+  const enabledEl = document.getElementById('sched-enabled');
+  if (s.enabled === false) {
+    enabledEl.innerHTML = '<span style="color:#e23e57">Disabled</span>';
+  } else {
+    enabledEl.innerHTML = '<span style="color:#4ecca3">Enabled</span>';
+  }
+}
+
+function showLog(msg, ok) {
+  const el = document.getElementById('cmd-log');
+  el.textContent = msg;
+  el.className = 'log ' + (ok ? 'ok' : 'err');
+  setTimeout(() => { el.textContent = ''; el.className = 'log'; }, 3000);
+}
+
+async function sendCmd(command, value) {
+  try {
+    const body = value !== undefined ? {command, value: String(value)} : {command};
+    const res = await fetch(API + '/api/command', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (data.ok) {
+      showLog('Sent: ' + (data.command || command), true);
+    } else {
+      showLog('Error: ' + (data.error || 'failed'), false);
+    }
+  } catch (e) {
+    showLog('Error: ' + e.message, false);
+  }
+}
+
+function setPower(level) {
+  sendCmd('blowerMode', level);
+  highlightPower(level);
+  document.getElementById('robot-blower').textContent = level + '%';
+}
+
+function highlightPower(level) {
+  const btns = document.querySelectorAll('.btn-power');
+  const decile = Math.round(level / 10);
+  btns.forEach((btn, i) => {
+    btn.classList.toggle('active', i === decile);
+  });
+}
+
+// Fanfare: ba-ba-buh-BAH-buh-BAAAAAHHHH
+// Mapped to a major triad across the 0-100 range
+let fanfarePlaying = false;
+async function playFanfare() {
+  if (fanfarePlaying) return;
+  fanfarePlaying = true;
+  const btn = document.querySelector('.btn-fanfare');
+  btn.classList.add('playing');
+
+  // Bb major triad fanfare — tuned to actual motor pitches
+  // 40=Bb, 70=D, 90=F
+  const notes = [
+    { power: 40, duration: 500 },   // ba    (Bb)
+    { power: 40, duration: 500 },   // ba    (Bb)
+    { power: 70, duration: 500 },   // buh   (D)
+    { power: 90, duration: 800 },   // BAH   (F)
+    { power: 70, duration: 500 },   // buh   (D)
+    { power: 90, duration: 1800 },  // BAAAAAHHHH (F)
+  ];
+
+  for (const note of notes) {
+    sendCmd('blowerMode', note.power);
+    highlightPower(note.power);
+    await new Promise(r => setTimeout(r, note.duration));
+  }
+
+  // Silence after the fanfare
+  await new Promise(r => setTimeout(r, 200));
+  sendCmd('blowerMode', 0);
+  highlightPower(0);
+
+  btn.classList.remove('playing');
+  fanfarePlaying = false;
+}
+
+async function sendCustom() {
+  const raw = document.getElementById('custom-cmd').value.trim();
+  if (!raw) return;
+  try {
+    const res = await fetch(API + '/api/command', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({command: raw})
+    });
+    const data = await res.json();
+    const el = document.getElementById('custom-log');
+    if (data.ok) {
+      el.textContent = 'Sent: ' + raw;
+      el.className = 'log ok';
+    } else {
+      el.textContent = 'Error: ' + (data.error || 'failed');
+      el.className = 'log err';
+    }
+    setTimeout(() => { el.textContent = ''; el.className = 'log'; }, 5000);
+  } catch (e) {
+    document.getElementById('custom-log').textContent = 'Error: ' + e.message;
+  }
+}
+
+async function toggleSchedule() {
+  try {
+    const res = await fetch(API + '/api/schedule/toggle', {method: 'POST'});
+    const data = await res.json();
+    showLog('Schedule ' + (data.enabled ? 'enabled' : 'disabled'), true);
+    refreshSchedule();
+  } catch (e) {
+    showLog('Error: ' + e.message, false);
+  }
+}
+
+async function addSchedule() {
+  const time = document.getElementById('sched-time').value;
+  const command = document.getElementById('sched-cmd').value;
+  const activeDays = [];
+  document.querySelectorAll('.day-btn.active').forEach(b => activeDays.push(b.dataset.day));
+
+  if (!time) { showLog('Set a time first', false); return; }
+
+  const entry = { time, command };
+  if (activeDays.length > 0 && activeDays.length < 7) {
+    entry.days = activeDays;
+  }
+
+  try {
+    const res = await fetch(API + '/api/schedule/add', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(entry)
+    });
+    const data = await res.json();
+    if (data.ok) {
+      showLog('Schedule entry added', true);
+      refreshSchedule();
+    } else {
+      showLog('Error: ' + (data.error || 'failed'), false);
+    }
+  } catch (e) {
+    showLog('Error: ' + e.message, false);
+  }
+}
+
+async function removeSchedule(index) {
+  try {
+    const res = await fetch(API + '/api/schedule/remove', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({index})
+    });
+    const data = await res.json();
+    if (data.ok) {
+      showLog('Schedule entry removed', true);
+      refreshSchedule();
+    } else {
+      showLog('Error: ' + (data.error || 'failed'), false);
+    }
+  } catch (e) {
+    showLog('Error: ' + e.message, false);
+  }
+}
+
+async function refreshSchedule() {
+  try {
+    const res = await fetch(API + '/api/schedule');
+    const data = await res.json();
+    updateScheduleUI(data);
+  } catch (e) {}
+}
+
+// SSE for real-time updates
+function connectSSE() {
+  const es = new EventSource(API + '/api/events');
+  es.onmessage = (e) => {
+    try {
+      updateUI(JSON.parse(e.data));
+    } catch (err) {}
+  };
+  es.onerror = () => {
+    document.getElementById('conn-dot').className = 'status-dot disconnected';
+    document.getElementById('conn-text').textContent = 'Server offline';
+    es.close();
+    setTimeout(connectSSE, 5000);
+  };
+}
+
+// Initial fetch + start SSE
+fetch(API + '/api/status')
+  .then(r => r.json())
+  .then(updateUI)
+  .catch(() => {});
+refreshSchedule();
+connectSSE();
+</script>
+</body>
+</html>
