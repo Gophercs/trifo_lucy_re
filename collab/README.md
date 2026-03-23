@@ -29,10 +29,13 @@ collab/
 
 1. Read `PROJECT.md` to understand the project
 2. Browse `tasks/` — pick one marked `status: open`
-3. Create a branch or fork
-4. Do the work. Write your findings into a submission folder
-5. Include your reasoning (what you tried, why, what you ruled out)
-6. Submit a PR or flag the maintainer
+3. **Claim it** — open a GitHub issue titled "Claiming TASK-XXX" so others
+   don't duplicate your effort. The maintainer will update the task status
+   to `in_progress`
+4. Create a branch or fork
+5. Do the work. Write your findings into a submission folder
+6. Include your reasoning (what you tried, why, what you ruled out)
+7. Submit a PR or flag the maintainer
 
 ### For Maintainers
 
