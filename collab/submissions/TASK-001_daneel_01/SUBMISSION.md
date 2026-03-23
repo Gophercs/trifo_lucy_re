@@ -7,13 +7,14 @@ confidence: medium
 date: 2026-03-23
 ---
 
-# TASK-001 Submission: Statistical Analysis of OGM Grid Encoding
+# TASK-001 Submission: Statistical Analysis + APK Decompilation
 
 ## Approach
 
-Pure statistical analysis of the grid data blobs extracted from the three sample
-OGM files. No firmware binary or robot access was used. The goal was to
-characterize the encoding and narrow the search space for future decode attempts.
+Statistical analysis of the grid data blobs plus full APK decompilation to
+trace the map data pipeline. No firmware binary or robot access was used.
+The goal was to characterize the encoding, identify decode paths, and narrow
+the search space for future attempts.
 
 ### Steps taken
 
@@ -25,6 +26,10 @@ characterize the encoding and narrow the search space for future decode attempts
 5. Identified repeating structural markers via pattern search
 6. Rendered raw bytes as images at various widths to detect spatial structure
 7. Compared renders against `shm_reference.png`
+8. Decompiled Trifo Home APK (v2.6.3) with jadx
+9. Traced complete cloud map data pipeline from MQTT receipt to grid rendering
+10. Recovered `CloudMapLayerMsg` protobuf schema from `r6.i`
+11. Confirmed APK receives already-decoded data — eliminates APK decode path
 
 ## Results
 
@@ -97,6 +102,45 @@ Raw byte renders at both width=417 and width=472 show:
 - Fine-grained repeating texture from the `0d040800` markers
 - No recognizable floor plan — encoding transforms prevent direct reading
 
+### APK decompilation (eliminates TASK-003 as a path to TASK-001)
+
+Fully decompiled the Trifo Home APK (v2.6.3, `com.trifo.trifohome`) with jadx
+and traced the complete map data flow. **The APK never sees OGM-encoded data.**
+
+The cloud data pipeline:
+```
+Cloud MQTT → Base64 string → Base64.decode() → LZ4 decompress
+  → protobuf parseFrom → CloudMapLayerMsg field 6 = raw cell values
+```
+
+Key classes traced:
+- `h3.h0.b()` — Base64 decode + LZ4 decompress to raw protobuf bytes
+- `h3.h0.c()` — LZ4 decompression via `net.jpountz.lz4.LZ4Factory`
+- `r6.k` (compiled from `CloudMultiMapLayerMsg.java`) — outer protobuf message
+- `r6.i` (compiled from `CloudMapLayerMsg.java`) — grid layer message
+- `q2.t` (compiled from `ParseLucyGriddateUtils.java`) — grid data consumer
+- `h3.z` (compiled from `ParseGriddateUtils.java`) — non-Lucy grid parser
+
+The `CloudMapLayerMsg` protobuf reads field 6 as raw `ByteString` via standard
+`codedInputStream.readBytes()` (tag 50). The consumer `I0()` iterates
+byte-by-byte: `byteArray[i] & 255`, storing `128 - value` as the cell value.
+
+**The robot decodes OGM → raw grid → wraps in protobuf → LZ4 → Base64 → cloud.
+The APK only receives the already-decoded raw cell values.**
+
+Recovered protobuf schema:
+```protobuf
+message CloudMapLayerMsg {  // r6.i
+  double resolution = 1;    // cell_size
+  int64 height = 2;
+  int64 width = 3;
+  double max_x = 4;
+  double max_y = 5;
+  bytes grid_data = 6;      // raw cell values, one byte per cell
+  uint32 type_len = 7;
+}
+```
+
 ## Failed approaches
 
 1. **Treating data as protobuf sub-messages** — byte values are coincidental,
@@ -105,6 +149,8 @@ Raw byte renders at both width=417 and width=472 show:
    blob but still not interpretable as occupancy values
 3. **Fixed-record-size analysis** — no record size (2–16 bytes) produces
    consistent low-entropy columns
+4. **APK decompilation** — the APK never touches OGM-encoded data; the robot
+   firmware decodes it before sending to the cloud
 
 ## Confidence
 
@@ -124,10 +170,10 @@ future contributors time. However, the actual decode algorithm remains unknown.
    The firmware decode routine will clarify whether this is a Huffman tree
    separator, tile header, or something else.
 
-3. **APK decompilation (TASK-003)** is an alternative path if firmware isn't
-   available. The Android app must decode this format to render maps. Tracing
-   `com.trifo.home` map rendering code could yield the algorithm without
-   needing the robot binary.
+3. **APK decompilation is NOT a path to the OGM decoder.** The APK only
+   receives already-decoded grid data from the cloud. The decode happens
+   exclusively in the firmware. This eliminates TASK-003 as a dependency
+   for TASK-001.
 
 4. **Only `small_map.ogm` is useful for testing.** The other two samples are
    empty maps. Additional non-empty OGM samples would help validate any
