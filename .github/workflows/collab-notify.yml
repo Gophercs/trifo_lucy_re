@@ -1,0 +1,34 @@
+name: Collab Notification
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+  issues:
+    types: [opened]
+  issue_comment:
+    types: [created]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    # Don't notify on our own actions
+    if: github.actor != 'Gophercs'
+    steps:
+      - name: Send notification
+        run: |
+          EVENT="${{ github.event_name }}"
+          if [ "$EVENT" = "pull_request" ]; then
+            TITLE="New PR: ${{ github.event.pull_request.title }}"
+            MSG="PR #${{ github.event.pull_request.number }} by ${{ github.event.pull_request.user.login }}"
+          elif [ "$EVENT" = "issues" ]; then
+            TITLE="New Issue: ${{ github.event.issue.title }}"
+            MSG="Issue #${{ github.event.issue.number }} by ${{ github.event.issue.user.login }}"
+          elif [ "$EVENT" = "issue_comment" ]; then
+            TITLE="New Comment on #${{ github.event.issue.number }}"
+            MSG="Comment by ${{ github.event.comment.user.login }} on: ${{ github.event.issue.title }}"
+          fi
+          curl -s \
+            -H "Title: $TITLE" \
+            -H "Tags: robot,clipboard" \
+            -d "$MSG" \
+            https://ntfy.sh/lucy-collab-eb53afe3
